@@ -1,59 +1,196 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Document</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font: 13px Helvetica, Arial; }
-        form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
-        form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
-        form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
-        #messages { list-style-type: none; margin: 0; padding: 0; }
-        #messages li { padding: 5px 10px; }
-        #messages li:nth-child(odd) { background: #eee; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font: 13px Helvetica, Arial;
+        }
+
+        form {
+            background: #000;
+            padding: 3px;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+
+        form input {
+            border: 0;
+            padding: 10px;
+            width: 90%;
+            margin-right: .5%;
+        }
+
+        form button {
+            width: 9%;
+            background: rgb(130, 224, 255);
+            border: none;
+            padding: 10px;
+        }
+
+        #messages {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #messages li {
+            padding: 5px 10px;
+        }
+
+        #messages li:nth-child(odd) {
+            background: #eee;
+        }
     </style>
 </head>
 
 <body id="chat">
+    <div id="login">
+        <input v-model="account" placeholder="account">
+        <input v-model="password" placeholder="password">
+    </div>
+    <button v-on="click : login">Dang nhap</button>
     <ul id="messages">
-        <li v-repeat="message: messages">{{ message }}</li>
+        <li v-repeat="message: messages">{{ message.name }} : {{ message.mess }}</li>
     </ul>
-
+    <!-- <button v-on="click : join">nhap ten</button> -->
     <form v-on="submit: send">
-        <input v-model="message">
+        <input v-model="mess">
         <button>Send</button>
     </form>
 
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.7/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/0.12.15/vue.min.js"></script>
     <script>
+        var authenticated = false;
         var socket = io();
+        const string = "http://localhost:3000"
+        // new Vue({
+        //     el: '#login',
 
+        //     data: {
+        //         account: "",
+        //         password: ""
+        //     }
+
+        //     methods: {
+        //         submit: function (e) {
+        //             axios.post(string + "/login", {
+        //                 account: this.account,
+        //                 password: this.password
+        //             }).then(() => {
+        //                 authenticated = true
+        //             }).catch((err) => {
+        //                 console.log("sai ten dang nhap hoac mat khau")
+        //             })
+        //         }
+        //     }
+        // })
         new Vue({
             el: '#chat',
 
             data: {
                 messages: [],
-                message: ''
+                mess: "",
+                name: ""
             },
 
-            ready: function() {
-                socket.on('chat.message', function(message) {
+            ready: function () {
+                // socket.on('chat', function (message) {
+                //     this.messages.push(message);
+                // }.bind(this));
+                // axios.get(string + "/users").then(function (res) {
+                //     console.log(res.data)
+                // }.bind(this)).catch(err => console.log(err))
+                // socket.on('join', function (message) {
+                //     this.messages.push(message)
+                //     console.log(this.messages)
+                // }.bind(this));
+                // socket.on('chat', function (message) {
+                //     this.messages.push(message);
+                // }.bind(this));
+                console.log(authenticated)
+
+                socket.on('chat', function (message) {
                     this.messages.push(message);
                 }.bind(this));
+
             },
 
             methods: {
-                send: function(e) {
-                    socket.emit('chat.message', this.message);
-
-                    this.message = '';
-
-                    e.preventDefault();
+                login: function (e) {
+                    // e.preventDefault();
+                    axios.post(string + "/login", {
+                        account: this.account,
+                        password: this.password
+                    }).then(function (res) {
+                        if (res.data.length > 0) authenticated = true
+                    }).catch((err) => {
+                        console.log("lỗi sv")
+                        e.preventDefault();
+                    })
+                    if (authenticated) {
+                        axios.get(string + "/chats").then(function (res) {
+                            this.messages = res.data;
+                        }.bind(this)).catch(err => console.log(err))
+                        this.name = this.account;
+                        socket.emit("join", this.account)
+                    }
+                },
+                send: function (e) {
+                    if (authenticated) {
+                        e.preventDefault();
+                        axios.post(string + "/chats", {
+                            name: this.name,
+                            mess: this.mess
+                        }).then(() => {
+                            socket.emit('chat', { name: this.name, mess: this.mess });
+                            this.mess = '';
+                            e.preventDefault()
+                        }).catch((err) => {
+                            socket.emit('chat', { name: this.name, mess: "mất đường truyền tín hiệu" });
+                            this.mess = '';
+                            e.preventDefault();
+                        })
+                    } else {
+                        e.preventDefault();
+                        socket.emit('chat', { name: 'ADMIN', mess: "Ban phai dang nhap" });
+                        this.mess = '';
+                        e.preventDefault();
+                    }
+                },
+                join: function () {
+                    // var person = prompt("Please enter your name", "tz");
+                    this.name = this.account;
+                    console.log(this.name)
+                    socket.emit("join", this.account)
                 }
             }
         })
+        //post request
+        function postChat(chat) {
+            $axios.post("http://localhost:3000/chats", chat)
+            console.log(chat)
+        }
+        function getChats() {
+            $.get("/chats", (chats) => {
+                chats.forEach(addChat)
+            })
+            function addChat(chatObj) {
+                $("#messages").append(`<h5>${chatObj.name} </h5><p>${chatObj.mess}</p>`);
+            }
+        }
     </script>
 </body>
+
 </html>
